@@ -7,7 +7,7 @@ Cluster-agnostic helpers used alongside the train/eval scripts.
 Interactive job & log viewer. Auto-tails Slurm logs; press `Ctrl-C` to return to the menu.
 
 ```bash
-~/script/utils/sqf.sh
+./utils/sqf.sh
 ```
 
 Env-var defaults (override before launch):
@@ -22,7 +22,7 @@ Env-var defaults (override before launch):
 Curses-based parquet picker that plots one episode's `observation.state` (solid) vs `action` (dashed), one trace per joint, on a single matplotlib figure.
 
 ```bash
-python ~/script/utils/visualize_state_action.py
+python ./utils/visualize_state_action.py
 # prompted for a directory containing .parquet files
 ```
 

@@ -18,20 +18,20 @@ In-house cluster, A100/H100. SSH: `kakao-login-1` / `-2` / `-3`. Home: `/rlwrld2
 
 ```bash
 # train
-sbatch ~/script/kakao/youngwoong_onboarding_train_pretrained.sh
-sbatch ~/script/kakao/youngwoong_onboarding_train_scratch.sh
+sbatch ./kakao/youngwoong_onboarding_train_pretrained.sh
+sbatch ./kakao/youngwoong_onboarding_train_scratch.sh
 
 # eval — single distance
-EVAL_SET=0cm sbatch ~/script/kakao/youngwoong_onboarding_eval_pretrained.sh
+EVAL_SET=0cm sbatch ./kakao/youngwoong_onboarding_eval_pretrained.sh
 
 # eval — sweep distances
 for d in 0cm 1cm 3cm 5cm; do
-    EVAL_SET=$d sbatch ~/script/kakao/youngwoong_onboarding_eval_pretrained.sh
+    EVAL_SET=$d sbatch ./kakao/youngwoong_onboarding_eval_pretrained.sh
 done
 
 # eval — different GPU type (H100), tag the output
 GPU_LABEL=h100 EVAL_SET=0cm sbatch -p h100 \
-    ~/script/kakao/youngwoong_onboarding_eval_pretrained.sh
+    ./kakao/youngwoong_onboarding_eval_pretrained.sh
 ```
 
 ## Env-var knobs (eval scripts)

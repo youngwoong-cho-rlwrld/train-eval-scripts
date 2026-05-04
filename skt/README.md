@@ -20,23 +20,23 @@ The skt cluster has tiered partitions per GPU type (`*` / `*_urgent` / `*_premiu
 
 ```bash
 # train (L40S default)
-sbatch ~/script/skt/youngwoong_onboarding_train_pretrained.sh
-sbatch ~/script/skt/youngwoong_onboarding_train_scratch.sh
+sbatch ./skt/youngwoong_onboarding_train_pretrained.sh
+sbatch ./skt/youngwoong_onboarding_train_scratch.sh
 
 # eval — single distance
-EVAL_SET=0cm sbatch ~/script/skt/youngwoong_onboarding_eval_pretrained.sh
+EVAL_SET=0cm sbatch ./skt/youngwoong_onboarding_eval_pretrained.sh
 
 # eval — sweep distances
 for d in 0cm 1cm 3cm 5cm; do
-    EVAL_SET=$d sbatch ~/script/skt/youngwoong_onboarding_eval_pretrained.sh
+    EVAL_SET=$d sbatch ./skt/youngwoong_onboarding_eval_pretrained.sh
 done
 
 # eval on H200 instead — override partition + label at submit time
 GPU_LABEL=h200 EVAL_SET=0cm sbatch -p rlwrld-gpu_background \
-    ~/script/skt/youngwoong_onboarding_eval_pretrained.sh
+    ./skt/youngwoong_onboarding_eval_pretrained.sh
 
 # train on H200 instead
-sbatch -p rlwrld-gpu ~/script/skt/youngwoong_onboarding_train_pretrained.sh
+sbatch -p rlwrld-gpu ./skt/youngwoong_onboarding_train_pretrained.sh
 ```
 
 ## Env-var knobs (eval scripts)
