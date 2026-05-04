@@ -1,0 +1,39 @@
+/* ============================================================
+   diagram.css — shared styles for the tensor-flow diagram lib
+   Used by any HTML file that calls renderDiagram(svg, spec).
+   ============================================================ */
+
+body { margin: 0; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #fafafa; }
+svg  { display: block; margin: 0 auto; background: #fff; }
+
+.module       { fill: rgba(180, 200, 230, 0.10); stroke: #7a8aa3; stroke-dasharray: 6 4; stroke-width: 1.5; }
+.module-label { font-size: 13px; font-weight: 600; fill: #5b6a85; }
+
+.node rect            { fill: #fff; stroke: #333; stroke-width: 1.5; }
+.node.tensor rect     { rx: 14; ry: 14; }
+.node.function rect   { rx: 0;  ry: 0; }
+.node text            { font-size: 12px; fill: #222; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+
+.edge      { fill: none; stroke: #555; stroke-width: 1.5; }
+.edge.loop { stroke-dasharray: 5 4; }
+
+.node, .edge, .module, .module-label {
+  transition: opacity 0.12s, stroke 0.12s, stroke-width 0.12s, fill 0.12s;
+}
+.node, .edge { cursor: pointer; }
+
+body.hovering .node:not(.highlighted)         { opacity: 0.18; }
+body.hovering .edge:not(.highlighted)         { opacity: 0.10; }
+body.hovering .module:not(.highlighted)       { opacity: 0.30; }
+body.hovering .module-label:not(.highlighted) { opacity: 0.30; }
+
+.node.highlighted rect       { stroke: #d2691e; stroke-width: 2.5; fill: #fff5e6; }
+/* keep stroke-width unchanged on hover so the arrow head doesn't scale with stroke */
+.edge.highlighted            { stroke: #d2691e; }
+.module.highlighted          { stroke: #d2691e; }
+.module-label.highlighted    { fill: #d2691e; }
+
+/* plot-label badges (always visible, not dimmed) */
+.plot-label circle           { fill: #2c7be5; stroke: #fff; stroke-width: 2; }
+.plot-label text             { fill: #fff; font-size: 12px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+body.hovering .plot-label    { opacity: 1; }
