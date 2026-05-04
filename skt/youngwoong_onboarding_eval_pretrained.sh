@@ -10,7 +10,6 @@
 set -e
 export OMNI_KIT_ACCEPT_EULA=Y
 export TOKENIZERS_PARALLELISM=false
-export PYTHONUNBUFFERED=1
 export NO_ALBUMENTATIONS_UPDATE=1
 
 # ─── 설정 ───

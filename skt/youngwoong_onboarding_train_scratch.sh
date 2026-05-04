@@ -10,7 +10,6 @@
 set -e
 source /fsx/rlwrld/youngwoong_cho/workspace/gr00t/.venv/bin/activate
 export TOKENIZERS_PARALLELISM=false
-export PYTHONUNBUFFERED=1
 export WANDB_PROJECT=gr00t
 
 python /fsx/rlwrld/youngwoong_cho/workspace/gr00t/scripts/gr00t_finetune.py \
