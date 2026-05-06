@@ -27,7 +27,7 @@ kakao/
     └── run.sh          # train + eval, with --random-diffusion
 ```
 
-Each experiment dir gains the following at runtime (all gitignored except `results.json`):
+Each experiment dir gains the following at runtime (all gitignored):
 
 ```
 checkpoints/{checkpoint-10000, ...-20000, ...-30000, experiment_cfg/, ...}
