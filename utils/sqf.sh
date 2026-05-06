@@ -121,12 +121,12 @@ cancel_jobs() {
     local to_cancel=()
     if [[ "$choice" =~ ^[aA]$ ]]; then
         for line in "${rows[@]}"; do
-            to_cancel+=("$(echo "$line" | awk '{print $1}')")
+            to_cancel+=("$(echo "$line" | awk -F '|' '{print $1}')")
         done
     else
         for n in $choice; do
             if [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le ${#rows[@]} ]; then
-                to_cancel+=("$(echo "${rows[$((n-1))]}" | awk '{print $1}')")
+                to_cancel+=("$(echo "${rows[$((n-1))]}" | awk -F '|' '{print $1}')")
             fi
         done
     fi
