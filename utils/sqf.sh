@@ -18,11 +18,12 @@ EXP_DIR="${SQF_EXP_DIR:-$HOME/scripts}"
 show_status() {
     clear
     echo '=== sacct (last 24h) ==='
-    sacct -u $(whoami) -X -S $(date -d '24 hours ago' +%Y-%m-%dT%H:%M) \
-          --format=JobID,JobName%30,State,ExitCode,Start,Elapsed,NodeList
+    sacct -u "$(whoami)" -X -P -S "$(date -d '24 hours ago' +%Y-%m-%dT%H:%M)" \
+          --format=JobID,JobName,State,ExitCode,Start,Elapsed,NodeList \
+        | column -t -s '|'
     echo
     echo '=== current squeue ==='
-    squeue -u $(whoami) -o '%.10i %.20j %.10P %.8T %.10M %.10L %R'
+    squeue -u "$(whoami)" -o '%i|%j|%P|%T|%M|%L|%R' | column -t -s '|'
     echo
     read -n 1 -s -p 'press any key to return to menu...'
 }
