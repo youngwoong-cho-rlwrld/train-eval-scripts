@@ -24,34 +24,44 @@ show_status() {
 
 show_gpus() {
     clear
+    # Wide column widths so even long node/partition names (skt: l40s-gpu-st-
+    # g6e-12xl-debug-3, rlwrld-gpu_background) get >=2 spaces of padding,
+    # which lets awk -F '  +' split each line cleanly. Column widths in the
+    # final printed tables are computed dynamically by `column -t`.
+    local fmt='NodeList:40,Partition:30,StateCompact:10,Gres:25,GresUsed:30'
     local data
-    data=$(sinfo -N -h --Format='NodeList:18,Partition:25,StateCompact:8,Gres:25,GresUsed:30' 2>/dev/null)
+    data=$(sinfo -N -h --Format="$fmt" 2>/dev/null)
 
     echo '=== Free GPUs by partition (where you can submit right now) ==='
-    printf '  %-25s %s\n' 'PARTITION' 'FREE_GPUs'
-    echo "$data" | awk '
-        function gc(s,    n) { n=0; if (match(s, /:[0-9]+\(/)) n = substr(s, RSTART+1, RLENGTH-2) + 0; return n }
-        $3 !~ /-$/ && $3 !~ /^(down|drain|drng|fail|maint|resv|unk|comp|boot|plnd|planned)/ {
-            free = gc($4) - gc($5)
-            if (free < 0) free = 0
-            sums[$2] += free
-            if (!($2 in sums)) sums[$2] = 0
-        }
-        END {
-            for (p in sums) if (sums[p] > 0) printf "  %-25s %d\n", p, sums[p]
-        }
-    ' | sort -k2,2nr
+    {
+        printf 'PARTITION\tFREE_GPUs\n'
+        echo "$data" | awk -F '  +' '
+            function gc(s,    n) { n=0; if (match(s, /:[0-9]+\(/)) n = substr(s, RSTART+1, RLENGTH-2) + 0; return n }
+            { sub(/^ +/, "") }
+            $3 == "idle" || $3 == "mix" {
+                free = gc($4) - gc($5); if (free < 0) free = 0
+                sums[$2] += free
+                if (!($2 in sums)) sums[$2] = 0
+            }
+            END {
+                for (p in sums) if (sums[p] > 0) printf "%s\t%d\n", p, sums[p]
+            }
+        ' | sort -t$'\t' -k2,2nr
+    } | column -t -s $'\t'
 
     echo
-    echo '=== Per-node free GPUs (skipped: draining/down) ==='
-    printf '  %-18s %-25s %-8s %s\n' 'NODE' 'PARTITION' 'STATE' 'FREE/TOTAL'
-    echo "$data" | awk '
-        function gc(s,    n) { n=0; if (match(s, /:[0-9]+\(/)) n = substr(s, RSTART+1, RLENGTH-2) + 0; return n }
-        $3 !~ /-$/ && $3 !~ /^(down|drain|drng|fail|maint|resv|unk|comp|boot|plnd|planned)/ {
-            total = gc($4); used = gc($5); free = total - used
-            if (free > 0) printf "  %-18s %-25s %-8s %d/%d\n", $1, $2, $3, free, total
-        }
-    ' | sort -u
+    echo '=== Per-node free GPUs (idle/mix only) ==='
+    {
+        printf 'NODE\tPARTITION\tSTATE\tFREE/TOTAL\n'
+        echo "$data" | awk -F '  +' '
+            function gc(s,    n) { n=0; if (match(s, /:[0-9]+\(/)) n = substr(s, RSTART+1, RLENGTH-2) + 0; return n }
+            { sub(/^ +/, "") }
+            $3 == "idle" || $3 == "mix" {
+                total = gc($4); used = gc($5); free = total - used
+                if (free > 0) printf "%s\t%s\t%s\t%d/%d\n", $1, $2, $3, free, total
+            }
+        ' | sort -u
+    } | column -t -s $'\t'
     echo
     read -n 1 -s -p 'press any key to return to menu...'
 }
