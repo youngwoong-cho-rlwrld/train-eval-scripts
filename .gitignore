@@ -24,6 +24,10 @@ checkpoints.*/
 
 # Eval artifacts (videos + per-run JSON)
 eval_results/
+results.json
 
 # Auto-generated per-run config (run.sh regenerates this via heredoc each run)
 data_config.yaml
+
+# Aggregated experiment results (Phase 3 output of run.sh)
+results.json
