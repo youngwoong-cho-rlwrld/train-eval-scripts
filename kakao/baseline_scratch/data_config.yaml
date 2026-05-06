@@ -1,0 +1,6 @@
+train:
+  datasets:
+    - path: /rlwrld2/home/seungcheol/80_datasets/v4/v4_cube_box_5cm_left_100_100
+      embodiment_tag: new_embodiment
+      data_config: allex_thetwo_ck40_egostereo
+      weight: 1.0
