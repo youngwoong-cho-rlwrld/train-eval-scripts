@@ -36,9 +36,19 @@ show_gpus() {
     {
         printf 'PARTITION\tFREE_GPUs\n'
         echo "$data" | awk -F '  +' '
-            function gc(s,    n) { n=0; if (match(s, /:[0-9]+\(/)) n = substr(s, RSTART+1, RLENGTH-2) + 0; return n }
+            function gc(s,    n) {
+                # Extract GPU count from a Gres / GresUsed string.
+                # Handles both kakao-style "gpu:8(S:0-1)" / "gpu:(null):8(IDX:0-7)"
+                # and skt-style "gpu:l40s:4" (no trailing parens).
+                n = 0
+                if (match(s, /[0-9]+\(/))      n = substr(s, RSTART, RLENGTH-1) + 0
+                else if (match(s, /:[0-9]+$/)) n = substr(s, RSTART+1, RLENGTH-1) + 0
+                return n
+            }
             { sub(/^ +/, "") }
-            $3 == "idle" || $3 == "mix" {
+            # Accept idle/mix and their cloud "~" variants (idle~ = powered down,
+            # auto-spins-up on allocation — the user can still submit there).
+            $3 ~ /^(idle|mix)~?$/ {
                 free = gc($4) - gc($5); if (free < 0) free = 0
                 sums[$2] += free
                 if (!($2 in sums)) sums[$2] = 0
@@ -50,13 +60,23 @@ show_gpus() {
     } | column -t -s $'\t'
 
     echo
-    echo '=== Per-node free GPUs (idle/mix only) ==='
+    echo '=== Per-node free GPUs (idle/mix; ~ = cloud node, will spin up on submit) ==='
     {
         printf 'NODE\tPARTITION\tSTATE\tFREE/TOTAL\n'
         echo "$data" | awk -F '  +' '
-            function gc(s,    n) { n=0; if (match(s, /:[0-9]+\(/)) n = substr(s, RSTART+1, RLENGTH-2) + 0; return n }
+            function gc(s,    n) {
+                # Extract GPU count from a Gres / GresUsed string.
+                # Handles both kakao-style "gpu:8(S:0-1)" / "gpu:(null):8(IDX:0-7)"
+                # and skt-style "gpu:l40s:4" (no trailing parens).
+                n = 0
+                if (match(s, /[0-9]+\(/))      n = substr(s, RSTART, RLENGTH-1) + 0
+                else if (match(s, /:[0-9]+$/)) n = substr(s, RSTART+1, RLENGTH-1) + 0
+                return n
+            }
             { sub(/^ +/, "") }
-            $3 == "idle" || $3 == "mix" {
+            # Accept idle/mix and their cloud "~" variants (idle~ = powered down,
+            # auto-spins-up on allocation — the user can still submit there).
+            $3 ~ /^(idle|mix)~?$/ {
                 total = gc($4); used = gc($5); free = total - used
                 if (free > 0) printf "%s\t%s\t%s\t%d/%d\n", $1, $2, $3, free, total
             }
