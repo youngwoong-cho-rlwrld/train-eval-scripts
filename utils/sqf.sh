@@ -88,6 +88,66 @@ set_dirs() {
     read -n 1 -s -p 'press any key to return to menu...'
 }
 
+cancel_jobs() {
+    clear
+    local rows=()
+    while IFS= read -r line; do
+        rows+=("$line")
+    done < <(squeue -h -u "$(whoami)" -o '%i|%j|%T|%M|%R' 2>/dev/null)
+
+    if [ ${#rows[@]} -eq 0 ]; then
+        echo '(no jobs to cancel)'
+        echo
+        read -n 1 -s -p 'press any key to return to menu...'
+        return
+    fi
+
+    {
+        printf 'IDX\tJOBID\tNAME\tSTATE\tELAPSED\tREASON/NODE\n'
+        local i=0
+        for line in "${rows[@]}"; do
+            i=$((i+1))
+            printf '%d\t%s\n' "$i" "$(echo "$line" | tr '|' '\t')"
+        done
+    } | column -t -s $'\t'
+    echo
+    echo "  Enter index/indexes (e.g. '1' or '1 3'), 'a' for ALL, 'q' to cancel"
+    read -p '> ' choice
+
+    if [[ "$choice" =~ ^[qQ]$ || -z "$choice" ]]; then
+        return
+    fi
+
+    local to_cancel=()
+    if [[ "$choice" =~ ^[aA]$ ]]; then
+        for line in "${rows[@]}"; do
+            to_cancel+=("$(echo "$line" | awk '{print $1}')")
+        done
+    else
+        for n in $choice; do
+            if [[ "$n" =~ ^[0-9]+$ ]] && [ "$n" -ge 1 ] && [ "$n" -le ${#rows[@]} ]; then
+                to_cancel+=("$(echo "${rows[$((n-1))]}" | awk '{print $1}')")
+            fi
+        done
+    fi
+
+    if [ ${#to_cancel[@]} -eq 0 ]; then
+        echo 'no valid selection'
+        sleep 1
+        return
+    fi
+
+    echo
+    echo "Will scancel: ${to_cancel[*]}"
+    read -p 'confirm? [y/N] ' confirm
+    if [[ "$confirm" =~ ^[yY]$ ]]; then
+        scancel "${to_cancel[@]}" && echo 'cancelled' || echo 'scancel failed'
+    else
+        echo 'aborted'
+    fi
+    sleep 1.5
+}
+
 show_log() {
     local pattern="$1"
     local label="$2"
@@ -161,6 +221,7 @@ while true; do
     echo '  3) STDERR (.err)'
     echo '  4) Isaac Sim server log'
     echo '  5) GPU availability'
+    echo '  c) Cancel job(s)'
     echo '  d) Set directories'
     echo '  q) Quit'
     echo
@@ -172,6 +233,7 @@ while true; do
         3) show_log "$LOG_DIR/*.err" 'STDERR' ;;
         4) show_log "$EXP_DIR/*/logs/server_*.log" 'server' ;;
         5) show_gpus ;;
+        c|C) cancel_jobs ;;
         d|D) set_dirs ;;
         q|Q) clear; exit 0 ;;
     esac
