@@ -25,9 +25,25 @@ export OMNI_KIT_ACCEPT_EULA=Y
 export TOKENIZERS_PARALLELISM=false
 export NO_ALBUMENTATIONS_UPDATE=1
 
-# ─── 경로 설정 (auto-detect from script location) ───
-EXP_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
-PARENT_DIR="$(basename "$EXP_DIR")"
+# ─── 경로 설정 (resolve from Slurm env when sbatch'd, realpath when run directly) ───
+# Under Slurm, $0 points to a temp copy at /var/spool/slurmd/<jobid>/..., so we
+# anchor off SLURM_JOB_NAME (= the #SBATCH --job-name = parent dir) and
+# SLURM_SUBMIT_DIR (where sbatch was invoked) instead.
+if [ -n "$SLURM_SUBMIT_DIR" ]; then
+    PARENT_DIR="${SLURM_JOB_NAME:-baseline_pretrained}"
+    if [[ "$SLURM_SUBMIT_DIR" == */"$PARENT_DIR" ]]; then
+        EXP_DIR="$SLURM_SUBMIT_DIR"
+    elif [ -d "$SLURM_SUBMIT_DIR/$PARENT_DIR" ]; then
+        EXP_DIR="$SLURM_SUBMIT_DIR/$PARENT_DIR"
+    elif [ -d "$SLURM_SUBMIT_DIR/kakao/$PARENT_DIR" ]; then
+        EXP_DIR="$SLURM_SUBMIT_DIR/kakao/$PARENT_DIR"
+    else
+        EXP_DIR="$SLURM_SUBMIT_DIR"
+    fi
+else
+    EXP_DIR="$(cd "$(dirname "$(realpath "$0")")" && pwd)"
+    PARENT_DIR="$(basename "$EXP_DIR")"
+fi
 GROOT_DIR="/rlwrld2/home/youngwoong_cho/workspace/gr00t"
 ISAAC_DIR="/rlwrld2/home/youngwoong_cho/workspace/rlwrld_isaac"
 
