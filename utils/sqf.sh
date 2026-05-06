@@ -7,6 +7,11 @@
 #   SQF_EXP_DIR     where per-experiment logs live    (default: $HOME/scripts)
 #                   (server logs at $EXP_DIR/<exp>/logs/server_*.log)
 
+# Ensure Slurm CLI is reachable. On skt the binaries live at /opt/slurm/bin
+# which is only on PATH for login shells (via /etc/profile.d/aws-pcluster-env.sh);
+# scripts and non-interactive shells need this prepended explicitly.
+[ -d /opt/slurm/bin ] && export PATH="/opt/slurm/bin:$PATH"
+
 LOG_DIR="${SQF_LOG_DIR:-$HOME/logs}"
 EXP_DIR="${SQF_EXP_DIR:-$HOME/scripts}"
 
