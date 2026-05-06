@@ -13,7 +13,17 @@
 [ -d /opt/slurm/bin ] && export PATH="/opt/slurm/bin:$PATH"
 
 LOG_DIR="${SQF_LOG_DIR:-$HOME/logs}"
-EXP_DIR="${SQF_EXP_DIR:-$HOME/scripts}"
+
+# Auto-detect cluster sub-tree under train-eval-scripts/, fall back to ~/scripts.
+# /fsx exists on skt (Lustre); /rlwrld2 exists on kakao (NFS).
+if [ -d /fsx ] && [ -d "$HOME/train-eval-scripts/skt" ]; then
+    _DEFAULT_EXP_DIR="$HOME/train-eval-scripts/skt"
+elif [ -d /rlwrld2 ] && [ -d "$HOME/train-eval-scripts/kakao" ]; then
+    _DEFAULT_EXP_DIR="$HOME/train-eval-scripts/kakao"
+else
+    _DEFAULT_EXP_DIR="$HOME/scripts"
+fi
+EXP_DIR="${SQF_EXP_DIR:-$_DEFAULT_EXP_DIR}"
 
 show_status() {
     clear
