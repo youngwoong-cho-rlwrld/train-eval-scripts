@@ -1,53 +1,79 @@
 # Kakao cluster scripts
 
-In-house cluster, A100/H100. SSH: `kakao-login-1` / `-2` / `-3`. Home: `/rlwrld2/home/<user>`.
+In-house cluster, A100. SSH: `kakao-login-1` / `-2` / `-3`. Home: `/rlwrld2/home/<user>`.
 
-## Defaults
+## Defaults (per `#SBATCH` headers in each `run.sh`)
 
 | Field | Value |
 |---|---|
-| Train partition | `rlwrld` (A100, 8 GPU/node, 48 h max) |
-| Eval partition | `rlwrld` (in this script set; convention says `background`) |
-| Train GPUs | 2 |
-| Eval GPUs | 1 |
-| Train walltime | 48 h |
-| Eval walltime | 12 h |
-| Default `GPU_LABEL` | `a100` |
+| Default partition | `rlwrld` (A100, 8 GPU/node, 48 h max) |
+| GPUs requested | 2 |
+| Walltime | 48 h |
+
+Override the partition (e.g., to use `background` when `rlwrld` is full, or `h100` for H100s) via the sbatch CLI:
+
+```bash
+sbatch -p background kakao/baseline_pretrained/run.sh
+sbatch -p h100       kakao/baseline_pretrained/run.sh
+```
+
+## Layout
+
+```
+kakao/
+├── baseline_pretrained/
+│   └── run.sh          # train + eval, no --random-diffusion
+└── baseline_scratch/
+    └── run.sh          # train + eval, with --random-diffusion
+```
+
+Each experiment dir gains the following at runtime (all gitignored except `results.json`):
+
+```
+checkpoints/{checkpoint-10000, ...-20000, ...-30000, experiment_cfg/, ...}
+eval_results/<set>/run_<i>/{results.json, videos/ep000.mp4..ep069.mp4}
+logs/{run.log, server_<set>_run<i>.log}
+wandb/run-*/
+data_config.yaml          # auto-regenerated each run via heredoc
+results.json              # aggregated mean ± std (Phase 3 output)
+```
 
 ## Submit
 
 ```bash
-# train
-sbatch ./kakao/youngwoong_onboarding_train_pretrained.sh
-sbatch ./kakao/youngwoong_onboarding_train_scratch.sh
+# Full pipeline (train then eval)
+sbatch kakao/baseline_pretrained/run.sh
+sbatch kakao/baseline_scratch/run.sh
 
-# eval — single distance
-EVAL_SET=0cm sbatch ./kakao/youngwoong_onboarding_eval_pretrained.sh
+# Eval-only (Phase 1 short-circuits when checkpoint-30000 already exists)
+sbatch kakao/baseline_pretrained/run.sh
 
-# eval — sweep distances
-for d in 0cm 1cm 3cm 5cm; do
-    EVAL_SET=$d sbatch ./kakao/youngwoong_onboarding_eval_pretrained.sh
-done
-
-# eval — different GPU type (H100), tag the output
-GPU_LABEL=h100 EVAL_SET=0cm sbatch -p h100 \
-    ./kakao/youngwoong_onboarding_eval_pretrained.sh
+# Different partition (preemptible, starts immediately when rlwrld is full)
+sbatch -p background kakao/baseline_pretrained/run.sh
 ```
 
-## Env-var knobs (eval scripts)
+The Slurm job-name and wandb run-name are auto-composed at runtime (no env vars needed):
 
-| Var | Default | Effect |
-|---|---|---|
-| `EVAL_SET` | `0cm` | Eval-set name; passed to Isaac `server_v2.py --eval-set` and embedded in the output dir |
-| `GPU_LABEL` | `a100` | Tag for the output dir, useful when comparing across GPU types |
+```
+{parent_dir}_{gpu_instance}_{yyyymmddHHMMSS}
+e.g. baseline_pretrained_a100_20260506081503
+```
 
 ## Output
 
+Per-run JSON + videos:
 ```
-/rlwrld2/home/<user>/eval_results/<run_name>/<EVAL_SET>_<GPU_LABEL>_<yyyymmddHHMMSS>/
-    server.log       Isaac Sim server stdout/stderr
-    results.json     final per-episode + aggregate eval summary
-    *.parquet        per-episode (state, action) trajectories (use utils/visualize_state_action.py)
+kakao/<exp>/eval_results/<set>/run_<i>/
+    results.json     per-run summary (success_rate, per-episode list)
+    videos/ep<NNN>.mp4
 ```
 
-Slurm logs land in `/rlwrld2/home/<user>/logs/<jobname>_<jobid>.{out,err}` — create that dir first.
+Aggregated JSON (the experiment's headline number):
+```
+kakao/<exp>/results.json
+```
+
+Slurm stdout/stderr (filename uses the static initial job-name + jobid because `#SBATCH` is parsed before the script body):
+```
+~/logs/baseline_<variant>_<jobid>.{out,err}
+```

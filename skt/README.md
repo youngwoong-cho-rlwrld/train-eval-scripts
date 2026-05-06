@@ -1,64 +1,26 @@
 # SKT cluster scripts
 
+> **No scripts ported to skt yet.** Adapt `kakao/baseline_*/run.sh` as a template.
+
 AWS ParallelCluster (us-east-1), L40S + H200. SSH: `skt`. Home: `/fsx/rlwrld/<user>` (Lustre).
 
-## Defaults
+## Differences from kakao
 
-| Field | Value |
-|---|---|
-| Train partition | `l40s-gpu` (L40S, 4 GPU/node, 120 d max) |
-| Eval partition | `l40s-gpu_background` (preemptible, 48 h max — eval convention) |
-| Train GPUs | 2 |
-| Eval GPUs | 1 |
-| Train walltime | 48 h |
-| Eval walltime | 12 h |
-| Default `GPU_LABEL` | `l40s` |
+- **Home**: `/fsx/rlwrld/<user>` (Lustre), **not** `/rlwrld2/home/<user>` (NFS).
+- `/rlwrld[1-4]` and `/rlwrld-dataset` do not exist on skt.
+- Slurm CLI lives at `/opt/slurm/bin` (auto-added to `PATH` by `/etc/profile.d/aws-pcluster-env.sh` for the `rlwrld` group).
+- Default partition for the `rlwrld` group is `rlwrld-gpu` (H200), so explicit `-p l40s-gpu*` is needed for L40S work.
+- Tier policy is implemented: each base partition has `*` (normal) / `*_urgent` / `*_premium` / `*_background` flavors.
 
-The skt cluster has tiered partitions per GPU type (`*` / `*_urgent` / `*_premium` / `*_background`). See [`docs/slurm-structure.md`](../../docs/slurm-structure.md) for the policy.
+See `docs/slurm-structure.md` for the full picture.
 
-## Submit
+## Adapting kakao scripts
 
-```bash
-# train (L40S default)
-sbatch ./skt/youngwoong_onboarding_train_pretrained.sh
-sbatch ./skt/youngwoong_onboarding_train_scratch.sh
+Copy `kakao/baseline_pretrained/run.sh` (or `_scratch`) into `skt/<exp>/run.sh` and change:
 
-# eval — single distance
-EVAL_SET=0cm sbatch ./skt/youngwoong_onboarding_eval_pretrained.sh
+- `GROOT_DIR`, `ISAAC_DIR` to live under `/fsx/rlwrld/<user>/workspace/`
+- `#SBATCH --output` / `--error` to `/fsx/rlwrld/<user>/logs/...`
+- `#SBATCH --partition=rlwrld` to `l40s-gpu` (or `rlwrld-gpu` for H200)
+- `DATA_PATH` to a path that exists under `/fsx/rlwrld/...`
 
-# eval — sweep distances
-for d in 0cm 1cm 3cm 5cm; do
-    EVAL_SET=$d sbatch ./skt/youngwoong_onboarding_eval_pretrained.sh
-done
-
-# eval on H200 instead — override partition + label at submit time
-GPU_LABEL=h200 EVAL_SET=0cm sbatch -p rlwrld-gpu_background \
-    ./skt/youngwoong_onboarding_eval_pretrained.sh
-
-# train on H200 instead
-sbatch -p rlwrld-gpu ./skt/youngwoong_onboarding_train_pretrained.sh
-```
-
-## Env-var knobs (eval scripts)
-
-| Var | Default | Effect |
-|---|---|---|
-| `EVAL_SET` | `0cm` | Eval-set name; passed to Isaac `server_v2.py --eval-set` and embedded in the output dir |
-| `GPU_LABEL` | `l40s` | Tag for the output dir, useful when comparing across GPU types |
-
-## Output
-
-```
-/fsx/rlwrld/<user>/eval_results/<run_name>/<EVAL_SET>_<GPU_LABEL>_<yyyymmddHHMMSS>/
-    server.log       Isaac Sim server stdout/stderr
-    results.json     final per-episode + aggregate eval summary
-    *.parquet        per-episode (state, action) trajectories (use utils/visualize_state_action.py)
-```
-
-Slurm logs land in `/fsx/rlwrld/<user>/logs/<jobname>_<jobid>.{out,err}` — create that dir first.
-
-## Notes
-
-- `/rlwrld[1-4]` does **not** exist on skt — paths under `/fsx/rlwrld/<user>` are the equivalents.
-- Slurm CLI lives at `/opt/slurm/bin` and is auto-added to `PATH` by `/etc/profile.d/aws-pcluster-env.sh` for the `rlwrld` group.
-- Default partition for the `rlwrld` group is `rlwrld-gpu` (H200), so explicit `-p l40s-gpu*` is required for L40S work — already set in the `#SBATCH` headers here.
+Everything else (auto-detect of `EXP_DIR`, dynamic `EXP_NAME` from `nvidia-smi`, gr00t fine-tune flags, Phase 1 skip guard) carries over unchanged. The `nvidia-smi` GPU detector already knows about L40S and H200.

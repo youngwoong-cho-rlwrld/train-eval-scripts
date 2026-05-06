@@ -10,12 +10,24 @@ Interactive job & log viewer. Auto-tails Slurm logs; press `Ctrl-C` to return to
 ./utils/sqf.sh
 ```
 
+Menu:
+
+| | Action |
+|---|---|
+| `1` | Job status (sacct last 24 h + current squeue) |
+| `2` | STDOUT (`.out`) — pick from slurm `*.out` logs |
+| `3` | STDERR (`.err`) — pick from slurm `*.err` logs |
+| `4` | Isaac Sim server log — pick from `<EXP_DIR>/<exp>/logs/server_<set>_run<i>.log` |
+| `5` | GPU availability — free GPUs by partition + per-node detail |
+| `d` | Set directories (override `LOG_DIR` / `EXP_DIR` mid-session) |
+| `q` | Quit |
+
 Env-var defaults (override before launch):
 
 | Var | Default | Purpose |
 |---|---|---|
 | `SQF_LOG_DIR` | `$HOME/logs` | Slurm `.out` / `.err` location |
-| `SQF_EVAL_DIR` | `$HOME/eval_results` | Eval rollout dirs (`server.log`, `results.json`, `*.parquet`) |
+| `SQF_EXP_DIR` | `$HOME/scripts` | Per-experiment dirs containing `logs/server_<set>_run<i>.log` |
 
 ## `visualize_state_action.py`
 
@@ -26,7 +38,9 @@ python ./utils/visualize_state_action.py
 # prompted for a directory containing .parquet files
 ```
 
-Expects each parquet to have `observation.state` and `action` columns whose entries are equal-length 1-D arrays (one per joint). Used to inspect per-episode rollouts produced by the eval scripts.
+Expects each parquet to have `observation.state` and `action` columns whose entries are equal-length 1-D arrays (one per joint).
+
+> **Note**: The current `kakao/baseline_*/run.sh` does not pass `--save-data` to `eval_allex.py`, so per-episode parquet files aren't produced. To use this tool against new eval output, add `--save-data` to the `python scripts/eval_allex.py` invocation in `run.sh`.
 
 ## `diagram_lib/`
 
