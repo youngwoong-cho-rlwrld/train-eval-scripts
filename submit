@@ -57,7 +57,7 @@ case "$PHASE" in
     eval)  TIME=08:00:00; BODY="$REPO_ROOT/lib/eval_body.sh" ;;
 esac
 
-JOB_NAME="${VARIANT}_${PHASE}"
+JOB_NAME="${PHASE}_${VARIANT}_${CLUSTER}_${PARTITION}_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$LOG_DIR"
 
 # sbatch isn't always on PATH (skt non-login shells expect /opt/slurm/bin)
