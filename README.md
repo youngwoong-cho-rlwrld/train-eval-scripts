@@ -1,72 +1,59 @@
-# RLWRLD scripts
+# train-eval-scripts
 
-Slurm submission scripts for the two RLWRLD clusters (kakao + skt) plus utilities I use across both.
+Cluster-agnostic train + eval orchestration for the GR00T baselines.
 
 ## Layout
 
 ```
-train-eval-scripts/   # default name from `git clone <url>`
-├── kakao/   submission scripts for kakao (in-house, A100/H100)
-│   ├── baseline_pretrained/run.sh   # train + eval, no --random-diffusion
-│   └── baseline_scratch/run.sh      # train + eval, with --random-diffusion
-├── skt/     placeholder for skt (AWS, L40S/H200) — no scripts yet
-└── utils/   cluster-agnostic helpers (job viewer, plotter, diagram lib)
+.
+├── submit                       # cluster-aware sbatch wrapper (entry point)
+├── clusters/
+│   ├── kakao.env                # in-house cluster paths/partition
+│   └── skt.env                  # AWS cluster paths/partition
+├── lib/
+│   ├── _common.sh               # log(), find_available_port(), GPU detect
+│   ├── train_body.sh            # Phase 1 — single-script training
+│   └── eval_body.sh             # Phase 2 + 3 — eval over EVAL_SETS, then aggregate
+├── experiments/                 # one dir per variant; runtime artifacts gitignored
+│   ├── baseline_pretrained/
+│   │   ├── config.sh            # variant knobs (GPUs, batch, --tune-visual etc.)
+│   │   └── (gitignored: checkpoints/ eval_results/ logs/ wandb/ results.json data_config.yaml)
+│   ├── baseline_pretrained_tunevisual/
+│   ├── baseline_scratch/
+│   └── baseline_scratch_tunevisual/
+└── utils/                       # ad-hoc helpers (sqf.sh, visualize_state_action.py)
 ```
 
-All command examples below assume you are `cd`'d into the repo root.
+## Usage
 
-## How a run.sh works
-
-Each `kakao/<exp>/run.sh` is a single sbatch script that does training → evaluation → result aggregation in one job:
-
-1. **Phase 1 — Training**: skipped if `<exp>/checkpoints/checkpoint-<MAX_STEPS>` already exists; otherwise runs `gr00t_finetune.py` to step `MAX_STEPS` (default `30000`).
-2. **Phase 2 — Evaluation**: launches Isaac Sim's `server_v2.py` and runs `eval_allex.py` for each `EVAL_SETS × N_RUNS` (default `0cm,3cm × 3 = 6 runs of 70 episodes`).
-3. **Phase 3 — Aggregation**: writes mean ± std across runs to `<exp>/results.json`.
-
-All artifacts (`checkpoints/`, `eval_results/`, `logs/`, `wandb/`, the auto-generated `data_config.yaml`) are written **inside the script's own directory**. The repo's `.gitignore` excludes them so the working tree stays clean.
-
-## Naming
-
-The Slurm job-name and wandb run-name are composed at runtime as:
-
-```
-{parent_dir}_{gpu_instance}_{yyyymmddHHMMSS}
-e.g. baseline_pretrained_a100_20260506081503
-```
-
-`gpu_instance` is detected via `nvidia-smi` (`a100`, `h100`, `h200`, `l40s`, `v100`, `unknown`). The job is renamed at runtime via `scontrol update JobName=…` so `squeue`/`sacct` reflect the dynamic name.
-
-The Slurm log filename is fixed by `#SBATCH --output` to `~/logs/{static_name}_{jobid}.{out,err}` (Slurm parses `#SBATCH` directives before the script body runs, so the filename can't include the dynamic name; `%j` keeps it unique).
-
-## Adapting for someone else
-
-Paths are hardcoded for `youngwoong_cho`. Before reuse, edit each `run.sh`:
-
-- `GROOT_DIR`, `ISAAC_DIR` — your gr00t and rlwrld_isaac trees
-- `DATA_PATH` — your dataset path
-- `WANDB_PROJECT` — wandb destination
-- `#SBATCH --output` / `--error` — slurm log dir (not auto-derived)
-- `#SBATCH --partition` if you target a different default
-
-`EXP_DIR` and the dynamic `EXP_NAME` auto-detect — no edit needed.
-
-## Quick start
+From either cluster (no need to know which one — auto-detected):
 
 ```bash
-ssh kakao-login-1
-cd ~/train-eval-scripts                  # or wherever you cloned to
-sbatch kakao/baseline_pretrained/run.sh  # train + eval pretrained
-sbatch kakao/baseline_scratch/run.sh     # train + eval scratch
+./submit train baseline_pretrained
+./submit eval  baseline_pretrained
+./submit eval  baseline_pretrained_tunevisual
 ```
 
-If `rlwrld` partition is full, route to `background` (preemptible):
+The wrapper:
+1. Detects cluster by checking which network FS is mounted (`/fsx/rlwrld` → skt, `/rlwrld2/home` → kakao).
+2. Sources `clusters/<name>.env` for partition + path overlay.
+3. Sources `experiments/<variant>/config.sh` for GPU count + variant-specific train flags.
+4. Calls `sbatch` against `lib/train_body.sh` or `lib/eval_body.sh` with the right cluster-specific options.
 
-```bash
-sbatch -p background kakao/baseline_pretrained/run.sh
-```
+## Adding a variant
 
-## Monitoring
+1. Make `experiments/<new_variant>/config.sh` (copy an existing one, tweak `TRAIN_EXTRA_ARGS`).
+2. Done. No new run/eval scripts needed.
 
-```bash
-./utils/sqf.sh   # interactive viewer: sacct/squeue, .out, .err, server logs, free GPUs
-```
+## Adding a cluster
+
+1. Make `clusters/<new>.env` with the same keys as kakao/skt envs.
+2. Add a detection branch in `submit`.
+
+## Cross-cluster eval matrix
+
+The same checkpoint can be evaluated on both clusters because each cluster's repo working tree maintains its own `experiments/<variant>/checkpoints/` (gitignored). To compare L40S vs A100 renders for variant V:
+
+1. Train on whichever cluster: `./submit train V` → produces `experiments/V/checkpoints/checkpoint-<MAX_STEPS>` on that cluster.
+2. Copy `experiments/V/checkpoints/` to the other cluster's repo working tree manually.
+3. Run `./submit eval V` on each cluster — eval results land in `experiments/V/eval_results/` and `experiments/V/results.json` on each side.

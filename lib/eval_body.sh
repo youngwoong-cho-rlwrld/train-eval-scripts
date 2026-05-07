@@ -1,0 +1,180 @@
+#!/usr/bin/env bash
+# Run by sbatch via the top-level submit wrapper.
+# Reads $VARIANT and $CLUSTER from the environment.
+set -euo pipefail
+export OMNI_KIT_ACCEPT_EULA=Y
+export TOKENIZERS_PARALLELISM=false
+export NO_ALBUMENTATIONS_UPDATE=1
+
+SELF_DIR="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
+REPO_ROOT_GUESS="$(cd "$SELF_DIR/.." && pwd)"
+source "$REPO_ROOT_GUESS/clusters/${CLUSTER}.env"
+source "$REPO_ROOT_GUESS/lib/_common.sh"
+
+EXP_DIR="$REPO_ROOT/experiments/$VARIANT"
+[ -d "$EXP_DIR" ] || { echo "ERROR: experiment dir not found: $EXP_DIR"; exit 1; }
+source "$EXP_DIR/config.sh"
+
+GPU_INSTANCE="$(detect_gpu_instance)"
+EXP_NAME="${VARIANT}_eval_${GPU_INSTANCE}_$(date +%Y%m%d%H%M%S)"
+[ -n "${SLURM_JOB_ID:-}" ] && scontrol update job="$SLURM_JOB_ID" JobName="$EXP_NAME" 2>/dev/null || true
+
+CKPT_DIR="$EXP_DIR/checkpoints"
+EVAL_DIR="$EXP_DIR/eval_results"
+mkdir -p "$EXP_DIR/logs" "$LOG_DIR" "$EVAL_DIR"
+LOG_FILE="$EXP_DIR/logs/eval.log"
+
+log "========================================================"
+log "$EXP_NAME"
+log "  cluster=$CLUSTER  partition=$PARTITION  gpu=$GPU_INSTANCE"
+log "========================================================"
+
+LAST_CKPT=$(ls -d ${CKPT_DIR}/checkpoint-* 2>/dev/null | sort -t- -k2 -n | tail -1)
+if [ -z "$LAST_CKPT" ]; then
+    log "ERROR: No checkpoint found in ${CKPT_DIR}"
+    exit 1
+fi
+log "Checkpoint: $LAST_CKPT"
+
+DATA_PATH="$DATA_DIR/$DATASET_NAME"
+
+###############################################################################
+# Phase 2: Evaluation
+###############################################################################
+
+SERVER_PID=""
+PORT=""
+
+cleanup() {
+    [ -n "$SERVER_PID" ] && kill -9 $SERVER_PID 2>/dev/null || true
+    [ -n "$PORT" ] && pkill -9 -f "server_v2.py.*--port $PORT" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+kill_server() {
+    log "Killing server (PID=$SERVER_PID, PORT=$PORT)..."
+    if [ -n "$SERVER_PID" ]; then
+        kill -9 -$SERVER_PID 2>/dev/null || true
+        kill -9 $SERVER_PID 2>/dev/null || true
+        wait $SERVER_PID 2>/dev/null || true
+    fi
+    if [ -n "$PORT" ]; then
+        pkill -9 -f "server_v2.py.*--port $PORT" 2>/dev/null || true
+    fi
+    for attempt in $(seq 1 10); do
+        if ! ss -tuln | grep -q ":$PORT "; then break; fi
+        sleep 2
+    done
+    SERVER_PID=""
+    log "Server stopped."
+}
+
+source "${GROOT_DIR}/.venv/bin/activate"
+cd "${GROOT_DIR}"
+
+for EVAL_SET in "${EVAL_SETS[@]}"; do
+    for i in $(seq 1 ${N_RUNS}); do
+        log ""
+        log "  eval_set: ${EVAL_SET} / Run ${i}/${N_RUNS}"
+
+        PORT=$(find_available_port)
+        log "  Isaac Sim server starting on port $PORT"
+
+        setsid bash -c "
+            source '${ISAAC_DIR}/.venv/bin/activate'
+            cd '${ISAAC_DIR}'
+            exec python scripts/environments/server_v2.py \
+                --task 'Isaac-UniPickPlace-ALLEX-JointAction-VisualStereo-Abs-v0' \
+                --task_name '${TASK_NAME}' \
+                --max-episode-steps ${MAX_EPISODE_STEPS} \
+                --image_crop_ratio 1.0 \
+                --image_resize_height 480 \
+                --image_resize_width 640 \
+                --port $PORT \
+                --device cpu \
+                --eval_set $EVAL_SET \
+                --app_launcher.headless
+        " > "${EXP_DIR}/logs/server_${EVAL_SET}_run${i}.log" 2>&1 &
+        SERVER_PID=$!
+
+        log "  Waiting 30s for server startup..."
+        sleep 30
+
+        source "${GROOT_DIR}/.venv/bin/activate"
+
+        RUN_DIR="${EVAL_DIR}/${EVAL_SET}/run_${i}"
+        log "  Running eval -> ${RUN_DIR}"
+
+        python scripts/eval_allex.py \
+            --model-path "$LAST_CKPT" \
+            --server-port $PORT \
+            --output-dir "$RUN_DIR" \
+            --instruction "${INSTRUCTION}" \
+            --n-episodes ${N_EPISODES} \
+            --execution_horizon ${EXECUTION_HORIZON} \
+            --data_config "${DATA_CONFIG}" \
+            --action_type joint_action
+
+        kill_server
+        sleep 5
+    done
+done
+
+###############################################################################
+# Phase 3: Aggregate
+###############################################################################
+
+log "Aggregating results..."
+
+EVAL_SETS_STR=$(printf "'%s', " "${EVAL_SETS[@]}")
+EVAL_SETS_STR="[${EVAL_SETS_STR%, }]"
+
+python - <<PYEOF
+import json, numpy as np
+from pathlib import Path
+
+base = Path('${EVAL_DIR}')
+eval_sets = ${EVAL_SETS_STR}
+n_runs = ${N_RUNS}
+all_results = {}
+
+for es in eval_sets:
+    rates = []
+    for i in range(1, n_runs + 1):
+        p = base / es / f'run_{i}' / 'results.json'
+        if p.exists():
+            with open(p) as f:
+                rates.append(json.load(f)['summary']['success_rate'])
+        else:
+            print(f'WARNING: {p} not found')
+    if rates:
+        rates = np.array(rates)
+        all_results[es] = {
+            'per_run_success_rate': rates.tolist(),
+            'mean_success_rate': float(np.mean(rates)),
+            'std_success_rate': float(np.std(rates)),
+        }
+        print(f'{es}: {np.mean(rates):.4f} +/- {np.std(rates):.4f}  {rates}')
+
+agg = {
+    'experiment': '${EXP_NAME}',
+    'cluster': '${CLUSTER}',
+    'gpu': '${GPU_INSTANCE}',
+    'note': '${TRAIN_NOTE}',
+    'checkpoint': '${LAST_CKPT}',
+    'data_config': '${DATA_CONFIG}',
+    'dataset': '${DATA_PATH}',
+    'task_name': '${TASK_NAME}',
+    'n_episodes': ${N_EPISODES},
+    'execution_horizon': ${EXECUTION_HORIZON},
+    'max_steps': ${MAX_STEPS},
+    'n_runs': n_runs,
+    'eval_sets': all_results,
+}
+out = Path('${EXP_DIR}') / 'results.json'
+with open(out, 'w') as f:
+    json.dump(agg, f, indent=2)
+print(f'Saved to {out}')
+PYEOF
+
+log "DONE  $EXP_DIR/results.json"

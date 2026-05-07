@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Cluster-aware sbatch wrapper.
+#
+# Usage:
+#   ./submit train <variant> [extra sbatch args]
+#   ./submit eval  <variant> [extra sbatch args]
+#
+# Examples:
+#   ./submit eval  baseline_pretrained
+#   ./submit train baseline_scratch_tunevisual
+#   ./submit eval  baseline_pretrained --exclusive    # extra sbatch flag
+#
+# Cluster (kakao vs skt) is auto-detected by checking which network FS is mounted.
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
+
+PHASE="${1:-}"
+VARIANT="${2:-}"
+shift 2 2>/dev/null || true
+
+if [[ -z "$PHASE" || -z "$VARIANT" ]]; then
+    echo "usage: $(basename $0) train|eval <variant> [extra sbatch args]" >&2
+    echo "       variants: $(ls $REPO_ROOT/experiments/ 2>/dev/null | tr '\n' ' ')" >&2
+    exit 2
+fi
+
+case "$PHASE" in
+    train|eval) ;;
+    *) echo "ERROR: phase must be 'train' or 'eval' (got: $PHASE)" >&2; exit 2 ;;
+esac
+
+# ── detect cluster ──
+if [[ -d /fsx/rlwrld ]]; then
+    CLUSTER=skt
+elif [[ -d /rlwrld2/home ]]; then
+    CLUSTER=kakao
+else
+    echo "ERROR: cannot detect cluster (neither /fsx/rlwrld nor /rlwrld2/home exists)" >&2
+    exit 3
+fi
+
+# ── load cluster + variant config to know GPUS, paths ──
+source "$REPO_ROOT/clusters/${CLUSTER}.env"
+
+CFG="$REPO_ROOT/experiments/$VARIANT/config.sh"
+if [[ ! -f "$CFG" ]]; then
+    echo "ERROR: no such variant: $CFG" >&2
+    echo "       available: $(ls $REPO_ROOT/experiments/ 2>/dev/null | tr '\n' ' ')" >&2
+    exit 4
+fi
+source "$CFG"
+
+GPUS="${TRAIN_NUM_GPUS:-2}"
+case "$PHASE" in
+    train) TIME=48:00:00; BODY="$REPO_ROOT/lib/train_body.sh" ;;
+    eval)  TIME=08:00:00; BODY="$REPO_ROOT/lib/eval_body.sh" ;;
+esac
+
+JOB_NAME="${VARIANT}_${PHASE}"
+mkdir -p "$LOG_DIR"
+
+set -x
+exec sbatch \
+    --job-name="$JOB_NAME" \
+    --partition="$PARTITION" \
+    --nodes=1 \
+    --gpus-per-node="$GPUS" \
+    --time="$TIME" \
+    --output="$LOG_DIR/${JOB_NAME}_%j.out" \
+    --error="$LOG_DIR/${JOB_NAME}_%j.err" \
+    --export="ALL,VARIANT=$VARIANT,CLUSTER=$CLUSTER" \
+    "$@" \
+    "$BODY"
