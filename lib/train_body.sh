@@ -6,10 +6,12 @@ export OMNI_KIT_ACCEPT_EULA=Y
 export TOKENIZERS_PARALLELISM=false
 export NO_ALBUMENTATIONS_UPDATE=1
 
-SELF_DIR="$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
-REPO_ROOT_GUESS="$(cd "$SELF_DIR/.." && pwd)"
-source "$REPO_ROOT_GUESS/clusters/${CLUSTER}.env"
-source "$REPO_ROOT_GUESS/lib/_common.sh"
+# REPO_ROOT, CLUSTER, VARIANT come from sbatch --export (see submit wrapper).
+: "${REPO_ROOT:?REPO_ROOT must be set by submit wrapper}"
+: "${CLUSTER:?CLUSTER must be set by submit wrapper}"
+: "${VARIANT:?VARIANT must be set by submit wrapper}"
+source "$REPO_ROOT/clusters/${CLUSTER}.env"
+source "$REPO_ROOT/lib/_common.sh"
 
 EXP_DIR="$REPO_ROOT/experiments/$VARIANT"
 [ -d "$EXP_DIR" ] || { echo "ERROR: experiment dir not found: $EXP_DIR"; exit 1; }

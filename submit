@@ -71,6 +71,6 @@ exec "$SBATCH_BIN" \
     --time="$TIME" \
     --output="$LOG_DIR/${JOB_NAME}_%j.out" \
     --error="$LOG_DIR/${JOB_NAME}_%j.err" \
-    --export="ALL,VARIANT=$VARIANT,CLUSTER=$CLUSTER" \
+    --export="ALL,VARIANT=$VARIANT,CLUSTER=$CLUSTER,REPO_ROOT=$REPO_ROOT" \
     "$@" \
     "$BODY"
