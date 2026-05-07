@@ -19,7 +19,6 @@ source "$EXP_DIR/config.sh"
 
 GPU_INSTANCE="$(detect_gpu_instance)"
 EXP_NAME="${VARIANT}_eval_${GPU_INSTANCE}_$(date +%Y%m%d%H%M%S)"
-[ -n "${SLURM_JOB_ID:-}" ] && scontrol update job="$SLURM_JOB_ID" JobName="$EXP_NAME" 2>/dev/null || true
 
 CKPT_DIR="$EXP_DIR/checkpoints"
 EVAL_DIR="$EXP_DIR/eval_results"
