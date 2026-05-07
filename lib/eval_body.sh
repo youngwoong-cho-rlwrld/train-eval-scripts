@@ -78,6 +78,14 @@ for EVAL_SET in "${EVAL_SETS[@]}"; do
         log ""
         log "  eval_set: ${EVAL_SET} / Run ${i}/${N_RUNS}"
 
+        # Idempotent: skip if this (set, run) already produced a results.json.
+        # Useful when re-running after a partial completion (e.g. server hang).
+        RUN_DIR="${EVAL_DIR}/${EVAL_SET}/run_${i}"
+        if [ -f "${RUN_DIR}/results.json" ]; then
+            log "  SKIP (results.json already exists): ${RUN_DIR}"
+            continue
+        fi
+
         PORT=$(find_available_port)
         log "  Isaac Sim server starting on port $PORT"
 
