@@ -60,8 +60,10 @@ esac
 JOB_NAME="${VARIANT}_${PHASE}"
 mkdir -p "$LOG_DIR"
 
+# sbatch isn't always on PATH (skt non-login shells expect /opt/slurm/bin)
+SBATCH_BIN="${SBATCH_BIN:-$(command -v sbatch 2>/dev/null || echo /opt/slurm/bin/sbatch)}"
 set -x
-exec sbatch \
+exec "$SBATCH_BIN" \
     --job-name="$JOB_NAME" \
     --partition="$PARTITION" \
     --nodes=1 \
