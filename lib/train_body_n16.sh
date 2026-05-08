@@ -17,7 +17,8 @@ EXP_DIR="$REPO_ROOT/experiments/$VARIANT"
 source "$EXP_DIR/config.sh"
 
 GPU_INSTANCE="$(detect_gpu_instance)"
-EXP_NAME="${VARIANT}_${GPU_INSTANCE}_$(date +%Y%m%d%H%M%S)"
+# EXP_NAME mirrors the slurm job name when launched via submit; fallback for ad-hoc runs.
+EXP_NAME="${SLURM_JOB_NAME:-${VARIANT}_${GPU_INSTANCE}_$(date +%Y%m%d%H%M%S)}"
 
 CKPT_DIR="$EXP_DIR/checkpoints"
 mkdir -p "$EXP_DIR/logs" "$LOG_DIR" "$CKPT_DIR"
@@ -75,6 +76,7 @@ uv run torchrun --nproc_per_node="$TRAIN_NUM_GPUS" gr00t/experiment/launch_finet
     --save-steps "$SAVE_STEPS" \
     --save-total-limit 5 \
     --dataloader-num-workers 8 \
+    --experiment-name "$EXP_NAME" \
     --use-wandb \
     --color-jitter-params brightness 0.2 contrast 0.2 saturation 0.2 hue 0.1 \
     "${TRAIN_EXTRA_ARGS[@]}"

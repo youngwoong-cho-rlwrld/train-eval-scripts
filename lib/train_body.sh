@@ -18,7 +18,8 @@ EXP_DIR="$REPO_ROOT/experiments/$VARIANT"
 source "$EXP_DIR/config.sh"
 
 GPU_INSTANCE="$(detect_gpu_instance)"
-EXP_NAME="${VARIANT}_${GPU_INSTANCE}_$(date +%Y%m%d%H%M%S)"
+# EXP_NAME mirrors the slurm job name when launched via submit; fallback for ad-hoc runs.
+EXP_NAME="${SLURM_JOB_NAME:-${VARIANT}_${GPU_INSTANCE}_$(date +%Y%m%d%H%M%S)}"
 
 CKPT_DIR="$EXP_DIR/checkpoints"
 mkdir -p "$EXP_DIR/logs" "$LOG_DIR" "$CKPT_DIR"
