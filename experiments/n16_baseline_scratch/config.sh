@@ -1,5 +1,5 @@
-# Variant: n16_baseline_pretrained
-# GR00T N1.6 + pretrained backbone, no --tune-visual
+# Variant: n16_baseline_scratch
+# GR00T N1.6 + random-init action head (--random-diffusion), no --tune-visual
 
 # Model version: routes to lib/train_body_n16.sh
 MODEL_VERSION=n1.6
@@ -28,5 +28,5 @@ EVAL_SETS=(0cm 1cm 3cm 5cm 7cm)
 
 TRAIN_NUM_GPUS=2
 TRAIN_BATCH_SIZE=64
-TRAIN_EXTRA_ARGS=()
-TRAIN_NOTE="GR00T N1.6 baseline_pretrained"
+TRAIN_EXTRA_ARGS=(--random-diffusion)
+TRAIN_NOTE="GR00T N1.6 baseline_scratch (--random-diffusion)"
