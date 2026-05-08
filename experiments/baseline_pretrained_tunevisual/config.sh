@@ -1,6 +1,9 @@
 # Variant: baseline_pretrained_tunevisual
 # --tune-visual, no --random-diffusion
 
+# Model version: routes to lib/train_body.sh (n1.5) or lib/train_body_n16.sh (n1.6)
+MODEL_VERSION=n1.5
+
 # Shared eval scenario config (currently identical across all 4 variants).
 # Override here if a variant ever needs a different task/dataset/instruction.
 DATASET_NAME=v4_cube_box_5cm_left_100_100
