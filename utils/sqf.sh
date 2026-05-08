@@ -2,9 +2,15 @@
 # Interactive job & log viewer.
 # Log views auto-tail; press Ctrl-C to return to the menu.
 #
-# Initial defaults can be overridden by env vars or via the in-menu "d" option.
+# Defaults can be overridden by (in order of precedence):
+#   1. env vars SQF_LOG_DIR / SQF_EXP_DIR
+#   2. saved config at SQF_CONFIG (default $HOME/.config/sqf/config)
+#   3. the in-menu "d" option (saved on exit of that menu)
+# On first run, sqf prompts and persists if either dir does not exist.
+#
+# Variables:
 #   SQF_LOG_DIR     where slurm .out/.err logs live   (default: $HOME/logs)
-#   SQF_EXP_DIR     where per-experiment logs live    (default: $HOME/scripts)
+#   SQF_EXP_DIR     where per-experiment logs live    (default: $HOME/train-eval-scripts/experiments)
 #                   (server logs at $EXP_DIR/<exp>/logs/server_*.log)
 
 # Ensure Slurm CLI is reachable. On skt the binaries live at /opt/slurm/bin
@@ -14,16 +20,56 @@
 
 LOG_DIR="${SQF_LOG_DIR:-$HOME/logs}"
 
-# Auto-detect cluster sub-tree under train-eval-scripts/, fall back to ~/scripts.
-# /fsx exists on skt (Lustre); /rlwrld2 exists on kakao (NFS).
-if [ -d /fsx ] && [ -d "$HOME/train-eval-scripts/skt" ]; then
-    _DEFAULT_EXP_DIR="$HOME/train-eval-scripts/skt"
-elif [ -d /rlwrld2 ] && [ -d "$HOME/train-eval-scripts/kakao" ]; then
-    _DEFAULT_EXP_DIR="$HOME/train-eval-scripts/kakao"
+# Auto-detect train-eval-scripts/experiments/ on the current cluster, fall back to ~/scripts.
+if [ -d "$HOME/train-eval-scripts/experiments" ]; then
+    _DEFAULT_EXP_DIR="$HOME/train-eval-scripts/experiments"
 else
     _DEFAULT_EXP_DIR="$HOME/scripts"
 fi
 EXP_DIR="${SQF_EXP_DIR:-$_DEFAULT_EXP_DIR}"
+
+# ── Persist user-chosen paths across sessions ──
+# Order of precedence (first wins):
+#   1. SQF_LOG_DIR / SQF_EXP_DIR env vars (handled above)
+#   2. ~/.config/sqf/config — written by the in-menu "d" option or first-run prompt
+#   3. auto-detected defaults
+SQF_CONFIG="${SQF_CONFIG:-$HOME/.config/sqf/config}"
+if [ -f "$SQF_CONFIG" ]; then
+    # source uses the persisted SQF_LOG_DIR / SQF_EXP_DIR only when env didn't already set them
+    while IFS= read -r line; do
+        case "$line" in
+            SQF_LOG_DIR=*) [ -z "${SQF_LOG_DIR:-}" ] && eval "$line"; LOG_DIR="${SQF_LOG_DIR:-$LOG_DIR}" ;;
+            SQF_EXP_DIR=*) [ -z "${SQF_EXP_DIR:-}" ] && eval "$line"; EXP_DIR="${SQF_EXP_DIR:-$EXP_DIR}" ;;
+        esac
+    done < "$SQF_CONFIG"
+fi
+
+_save_sqf_config() {
+    mkdir -p "$(dirname "$SQF_CONFIG")"
+    cat > "$SQF_CONFIG" <<EOF
+SQF_LOG_DIR="$LOG_DIR"
+SQF_EXP_DIR="$EXP_DIR"
+EOF
+}
+
+# ── First-run prompt: if either path is not a directory, ask the user once. ──
+if [ ! -d "$LOG_DIR" ] || [ ! -d "$EXP_DIR" ]; then
+    echo "=== sqf first-time setup ==="
+    echo "(saved to $SQF_CONFIG; can be re-set anytime via the \"d\" menu option)"
+    echo
+    if [ ! -d "$LOG_DIR" ]; then
+        read -e -p "Slurm log dir [$LOG_DIR]: " _ans
+        [ -n "$_ans" ] && LOG_DIR="${_ans/#\~/$HOME}"
+    fi
+    if [ ! -d "$EXP_DIR" ]; then
+        read -e -p "Experiment dir [$EXP_DIR]: " _ans
+        [ -n "$_ans" ] && EXP_DIR="${_ans/#\~/$HOME}"
+    fi
+    _save_sqf_config
+    echo "Saved. (Edit $SQF_CONFIG or use the \"d\" menu option to change later.)"
+    echo
+    read -n 1 -s -p "press any key to continue..."
+fi
 
 show_status() {
     clear
@@ -120,6 +166,8 @@ set_dirs() {
     echo 'Now using:'
     echo "  log dir:  $LOG_DIR"
     echo "  exp dir:  $EXP_DIR"
+    _save_sqf_config
+    echo "(saved to $SQF_CONFIG)"
     echo
     read -n 1 -s -p 'press any key to return to menu...'
 }
