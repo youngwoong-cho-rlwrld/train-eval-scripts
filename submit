@@ -57,9 +57,7 @@ case "$PHASE/$MODEL_VERSION" in
     train/n1.5) TIME=48:00:00; BODY="$REPO_ROOT/lib/train_body.sh" ;;
     train/n1.6) TIME=48:00:00; BODY="$REPO_ROOT/lib/train_body_n16.sh" ;;
     eval/n1.5)  TIME=08:00:00; BODY="$REPO_ROOT/lib/eval_body.sh" ;;
-    eval/n1.6)
-        echo "ERROR: eval is not yet supported for MODEL_VERSION=n1.6 — train only for now" >&2
-        exit 5 ;;
+    eval/n1.6)  TIME=08:00:00; BODY="$REPO_ROOT/lib/eval_body_n16.sh" ;;
     *) echo "ERROR: unknown PHASE/MODEL_VERSION: $PHASE/$MODEL_VERSION" >&2; exit 5 ;;
 esac
 
