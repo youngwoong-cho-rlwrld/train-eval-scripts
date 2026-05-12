@@ -309,6 +309,11 @@ while true; do
     echo '  d) Set directories'
     echo '  q) Quit'
     echo
+    echo '--------------------------------'
+    echo '  Features are not complete and there may be bugs.'
+    echo '  If anything found, please create an issue at:'
+    echo '  https://github.com/youngwoong-cho-rlwrld/train-eval-scripts/issues'
+    echo
     read -n 1 -s -p '> ' choice
     echo
     case "$choice" in
