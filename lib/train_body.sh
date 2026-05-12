@@ -31,19 +31,41 @@ log "  cluster=$CLUSTER  partition=$PARTITION  gpu=$GPU_INSTANCE"
 log "  variant note: $TRAIN_NOTE"
 log "========================================="
 
-# Render data_config.yaml from cluster + variant config
-DATA_PATH="$DATA_DIR/$DATASET_NAME"
+# Render data_config.yaml from cluster + variant config.
+# Two modes:
+#   (a) DATASETS=("name|data_config|weight" ...) — multi-dataset co-training.
+#   (b) DATASET_NAME=<name> + DATA_CONFIG=<cfg>  — legacy single-dataset (weight 1.0).
+# Each <name> is joined with $DATA_DIR to form the dataset path on disk.
 DATA_CONFIG_YAML="$EXP_DIR/data_config.yaml"
-cat > "$DATA_CONFIG_YAML" <<EOF
-train:
-  datasets:
-    - path: $DATA_PATH
-      embodiment_tag: new_embodiment
-      data_config: $DATA_CONFIG
-      weight: 1.0
-EOF
-log "Dataset:        $DATA_PATH"
-log "Data config:    $DATA_CONFIG"
+{
+    echo "train:"
+    echo "  datasets:"
+    if [[ "${DATASETS+set}" == set ]] && [ "${#DATASETS[@]}" -gt 0 ]; then
+        for entry in "${DATASETS[@]}"; do
+            IFS='|' read -r dname dcfg dweight <<<"$entry"
+            echo "    - path: $DATA_DIR/$dname"
+            echo "      embodiment_tag: new_embodiment"
+            echo "      data_config: $dcfg"
+            echo "      weight: $dweight"
+        done
+    else
+        echo "    - path: $DATA_DIR/$DATASET_NAME"
+        echo "      embodiment_tag: new_embodiment"
+        echo "      data_config: $DATA_CONFIG"
+        echo "      weight: 1.0"
+    fi
+} > "$DATA_CONFIG_YAML"
+
+if [[ "${DATASETS+set}" == set ]] && [ "${#DATASETS[@]}" -gt 0 ]; then
+    log "Datasets (${#DATASETS[@]}):"
+    for entry in "${DATASETS[@]}"; do
+        IFS='|' read -r dname dcfg dweight <<<"$entry"
+        log "  - $DATA_DIR/$dname  (data_config=$dcfg, weight=$dweight)"
+    done
+else
+    log "Dataset:        $DATA_DIR/$DATASET_NAME"
+    log "Data config:    $DATA_CONFIG"
+fi
 log "Output:         $CKPT_DIR"
 log "Max steps:      $MAX_STEPS"
 
