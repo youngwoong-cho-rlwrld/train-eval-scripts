@@ -21,7 +21,9 @@ Cluster-agnostic train + eval orchestration for the GR00T baselines.
 │   ├── baseline_pretrained_tunevisual/
 │   ├── baseline_scratch/
 │   └── baseline_scratch_tunevisual/
-└── utils/                       # ad-hoc helpers (sqf.sh, visualize_state_action.py)
+└── utils/
+    ├── sqf.sh                   # interactive job & log viewer (see Monitoring)
+    └── visualize_state_action.py
 ```
 
 ## Usage
@@ -39,6 +41,16 @@ The wrapper:
 2. Sources `clusters/<name>.env` for partition + path overlay.
 3. Sources `experiments/<variant>/config.sh` for GPU count + variant-specific train flags.
 4. Calls `sbatch` against `lib/train_body.sh` or `lib/eval_body.sh` with the right cluster-specific options.
+
+## Monitoring with `sqf`
+
+`utils/sqf.sh` is an interactive job + log viewer for active and recent runs. Single-key menu with options for `sacct`/`squeue` status, live-tailed STDOUT / STDERR, per-eval Isaac Sim server logs, GPU availability, and `scancel`.
+
+```bash
+~/train-eval-scripts/utils/sqf.sh
+```
+
+Defaults: `$HOME/logs` for slurm logs, `$HOME/train-eval-scripts/experiments` for per-variant logs. Override via `SQF_LOG_DIR` / `SQF_EXP_DIR` env vars, or the `d` menu option (persists to `~/.config/sqf/config`).
 
 ## Adding a variant
 
