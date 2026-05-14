@@ -7,7 +7,7 @@
 
 MODEL_VERSION=n1.5
 
-export DATA_DIR=/rlwrld2/home/youngwoong_cho/datasets
+export DATA_DIR="$HOME/datasets"
 
 DATASETS=(
     "v4_cube_box_5cm_left_100_100|allex_thetwo_ck40_egostereo|1.0"

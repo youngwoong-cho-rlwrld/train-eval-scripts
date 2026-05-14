@@ -8,7 +8,7 @@ MODEL_VERSION=n1.5
 
 # Override DATA_DIR so DATASETS entries resolve under ~/datasets/ (V4 symlinks),
 # instead of the kakao.env default of /rlwrld2/home/seungcheol/80_datasets/v4.
-export DATA_DIR=/rlwrld2/home/youngwoong_cho/datasets
+export DATA_DIR="$HOME/datasets"
 
 # Multi-dataset training. Format: "name|data_config|weight" (name is under $DATA_DIR).
 # weight=1.0 across all 5 matches the existing cotrain-*.yaml convention; this

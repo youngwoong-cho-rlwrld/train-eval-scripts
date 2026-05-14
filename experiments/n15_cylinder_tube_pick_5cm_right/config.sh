@@ -5,7 +5,7 @@ MODEL_VERSION=n1.5
 
 # Override DATA_DIR so DATASET_NAME resolves under ~/datasets/ (the V4 symlinks),
 # instead of the kakao.env default of /rlwrld2/home/seungcheol/80_datasets/v4.
-export DATA_DIR=/rlwrld2/home/youngwoong_cho/datasets
+export DATA_DIR="$HOME/datasets"
 DATASET_NAME=v4_cylinder_tube_pick_5cm_right_224
 DATA_CONFIG=allex_thetwo_ck40_egostereo
 
