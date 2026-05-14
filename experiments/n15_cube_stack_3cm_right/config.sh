@@ -14,7 +14,7 @@ INSTRUCTION="Pick the red cube with your right hand and stack it on the blue cub
 
 # Training
 MAX_STEPS=30000
-SAVE_STEPS=10000
+SAVE_STEPS=1000
 
 # Evaluation
 N_EPISODES=70

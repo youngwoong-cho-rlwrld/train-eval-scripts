@@ -14,7 +14,7 @@ INSTRUCTION="Lift up the cylinder with your left hand, making sure not to touch 
 
 # Training
 MAX_STEPS=30000
-SAVE_STEPS=10000
+SAVE_STEPS=1000
 
 # Evaluation
 N_EPISODES=70

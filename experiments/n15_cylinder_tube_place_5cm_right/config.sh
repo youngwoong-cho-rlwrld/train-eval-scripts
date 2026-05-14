@@ -14,7 +14,7 @@ INSTRUCTION="Lift the cylinder with your right hand and place it in the middle o
 
 # Training
 MAX_STEPS=30000
-SAVE_STEPS=10000
+SAVE_STEPS=1000
 
 # Evaluation
 N_EPISODES=70

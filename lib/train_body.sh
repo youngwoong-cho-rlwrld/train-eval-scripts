@@ -69,6 +69,19 @@ fi
 log "Output:         $CKPT_DIR"
 log "Max steps:      $MAX_STEPS"
 
+
+# Detect existing intermediate checkpoint → auto-resume
+RESUME_FLAG=False
+if compgen -G "$CKPT_DIR/checkpoint-*" > /dev/null; then
+    LATEST_CKPT=$(ls -d "$CKPT_DIR"/checkpoint-* 2>/dev/null | sort -t- -k2 -n | tail -1)
+    log "Existing checkpoint found: $LATEST_CKPT — will resume"
+    RESUME_FLAG=True
+fi
+if [[ "${RESUME_EXPECTED:-0}" == "1" && "$RESUME_FLAG" == "False" ]]; then
+    log "ERROR: resume requested but no checkpoint in $CKPT_DIR"
+    exit 1
+fi
+
 if [ -d "$CKPT_DIR/checkpoint-${MAX_STEPS}" ]; then
     log "Final checkpoint already exists at $CKPT_DIR/checkpoint-${MAX_STEPS} — skipping training."
     exit 0
@@ -78,6 +91,11 @@ cd "$GROOT_DIR"
 source "$GROOT_DIR/.venv/bin/activate"
 export WANDB_PROJECT=gr00t
 export WANDB_DIR="$EXP_DIR"
+
+if [ -n "${SLURM_JOB_ID:-}" ]; then
+    export WANDB_RUN_ID="slurm_${SLURM_JOB_ID}"
+    export WANDB_RESUME=allow
+fi
 
 python scripts/gr00t_finetune.py \
     --num-gpus "$TRAIN_NUM_GPUS" \
@@ -90,6 +108,7 @@ python scripts/gr00t_finetune.py \
     --dataloader_num_workers 16 \
     --dataloader-prefetch-factor 10 \
     --video-backend torchcodec \
+$([[ "$RESUME_FLAG" == "True" ]] && echo "--resume ") \
     --report-to wandb \
     --pin_memory \
     --run_name "$EXP_NAME" \

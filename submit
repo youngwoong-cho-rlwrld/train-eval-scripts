@@ -2,13 +2,19 @@
 # Cluster-aware sbatch wrapper.
 #
 # Usage:
-#   ./submit train <variant> [extra sbatch args]
-#   ./submit eval  <variant> [extra sbatch args]
+#   ./submit train  <variant> [--background] [extra sbatch args]
+#   ./submit resume <variant> [--background] [extra sbatch args]
+#   ./submit eval   <variant> [extra sbatch args]
 #
-# Examples:
-#   ./submit eval  baseline_pretrained
-#   ./submit train baseline_scratch_tunevisual
-#   ./submit eval  baseline_pretrained --exclusive    # extra sbatch flag
+# Phases:
+#   train   — start training from scratch (auto-detects existing checkpoint and resumes if present)
+#   resume  — explicitly resume; errors if no checkpoint exists
+#   eval    — run evaluation
+#
+# --background:
+#   - Sets partition to 'background' (Tier 1, preemptible)
+#   - Adds --requeue so slurm auto-resubmits on preemption
+#   - train_body.sh auto-resumes from latest checkpoint after REQUEUE
 #
 # Cluster (kakao vs skt) is auto-detected by checking which network FS is mounted.
 set -euo pipefail
@@ -20,14 +26,14 @@ VARIANT="${2:-}"
 shift 2 2>/dev/null || true
 
 if [[ -z "$PHASE" || -z "$VARIANT" ]]; then
-    echo "usage: $(basename $0) train|eval <variant> [extra sbatch args]" >&2
+    echo "usage: $(basename $0) train|resume|eval <variant> [--background] [extra sbatch args]" >&2
     echo "       variants: $(ls $REPO_ROOT/experiments/ 2>/dev/null | tr '\n' ' ')" >&2
     exit 2
 fi
 
 case "$PHASE" in
-    train|eval) ;;
-    *) echo "ERROR: phase must be 'train' or 'eval' (got: $PHASE)" >&2; exit 2 ;;
+    train|resume|eval) ;;
+    *) echo "ERROR: phase must be 'train', 'resume', or 'eval' (got: $PHASE)" >&2; exit 2 ;;
 esac
 
 # ── detect cluster ──
@@ -40,6 +46,16 @@ else
     exit 3
 fi
 
+# ── parse --background and forward unknown flags to sbatch ──
+BACKGROUND=0
+EXTRA_ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --background) BACKGROUND=1; shift ;;
+        *) EXTRA_ARGS+=("$1"); shift ;;
+    esac
+done
+
 # ── load cluster + variant config to know GPUS, paths ──
 source "$REPO_ROOT/clusters/${CLUSTER}.env"
 
@@ -51,15 +67,28 @@ if [[ ! -f "$CFG" ]]; then
 fi
 source "$CFG"
 
+# ── override partition for background ──
+SBATCH_PARTITION_FLAGS=()
+if (( BACKGROUND )); then
+    PARTITION=background
+    SBATCH_PARTITION_FLAGS=(--requeue)
+fi
+
 GPUS="${TRAIN_NUM_GPUS:-2}"
 MODEL_VERSION="${MODEL_VERSION:-n1.5}"
-case "$PHASE/$MODEL_VERSION" in
+# resume routes through the same body as train; the body uses RESUME_EXPECTED to enforce policy.
+ROUTE_PHASE="$PHASE"
+[[ "$PHASE" == "resume" ]] && ROUTE_PHASE="train"
+case "$ROUTE_PHASE/$MODEL_VERSION" in
     train/n1.5) TIME=48:00:00; BODY="$REPO_ROOT/lib/train_body.sh" ;;
     train/n1.6) TIME=48:00:00; BODY="$REPO_ROOT/lib/train_body_n16.sh" ;;
     eval/n1.5)  TIME=08:00:00; BODY="$REPO_ROOT/lib/eval_body.sh" ;;
     eval/n1.6)  TIME=08:00:00; BODY="$REPO_ROOT/lib/eval_body_n16.sh" ;;
-    *) echo "ERROR: unknown PHASE/MODEL_VERSION: $PHASE/$MODEL_VERSION" >&2; exit 5 ;;
+    *) echo "ERROR: unknown PHASE/MODEL_VERSION: $ROUTE_PHASE/$MODEL_VERSION" >&2; exit 5 ;;
 esac
+
+RESUME_EXPECTED=0
+[[ "$PHASE" == "resume" ]] && RESUME_EXPECTED=1
 
 JOB_NAME="${PHASE}_${VARIANT}_${CLUSTER}_${PARTITION}_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$LOG_DIR"
@@ -75,6 +104,7 @@ exec "$SBATCH_BIN" \
     --time="$TIME" \
     --output="$LOG_DIR/${JOB_NAME}_%j.out" \
     --error="$LOG_DIR/${JOB_NAME}_%j.err" \
-    --export="ALL,VARIANT=$VARIANT,CLUSTER=$CLUSTER,REPO_ROOT=$REPO_ROOT" \
-    "$@" \
+    --export="ALL,VARIANT=$VARIANT,CLUSTER=$CLUSTER,REPO_ROOT=$REPO_ROOT,RESUME_EXPECTED=$RESUME_EXPECTED" \
+    "${SBATCH_PARTITION_FLAGS[@]}" \
+    "${EXTRA_ARGS[@]}" \
     "$BODY"

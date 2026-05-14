@@ -38,7 +38,7 @@ TASKS=(
 
 # Training
 MAX_STEPS=30000
-SAVE_STEPS=10000
+SAVE_STEPS=1000
 
 # Evaluation (shared across all tasks in the matrix)
 N_EPISODES=70
