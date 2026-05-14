@@ -61,6 +61,30 @@ else
     DATA_PATH="(multi-dataset; see $EXP_DIR/data_config.yaml)"
 fi
 
+# Auto-detect input resolution from training dataset's meta/info.json.
+# gr00t bakes this into the checkpoint's modality config and asserts equality
+# at eval time (VideoToTensor.check_input). Mismatched sim -> ckpt = hard fail.
+if [[ "${DATASET_NAME+set}" == set ]]; then
+    FIRST_DS_PATH="$DATA_DIR/$DATASET_NAME"
+elif [[ "${DATASETS+set}" == set && ${#DATASETS[@]} -gt 0 ]]; then
+    FIRST_DS_PATH="$DATA_DIR/${DATASETS[0]%%|*}"
+else
+    FIRST_DS_PATH=""
+fi
+if [[ -n "$FIRST_DS_PATH" && -f "$FIRST_DS_PATH/meta/info.json" ]]; then
+    read EVAL_IMG_H EVAL_IMG_W < <(python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+shape = next(v['shape'] for v in d['features'].values() if v.get('dtype') == 'video')
+print(shape[1], shape[2])
+" "$FIRST_DS_PATH/meta/info.json")
+    log "Auto-detected input resolution: ${EVAL_IMG_H}x${EVAL_IMG_W} (from $FIRST_DS_PATH/meta/info.json)"
+else
+    EVAL_IMG_H=224
+    EVAL_IMG_W=224
+    log "Could not locate info.json; defaulting input resolution to ${EVAL_IMG_H}x${EVAL_IMG_W}"
+fi
+
 ###############################################################################
 # Phase 2: Evaluation
 ###############################################################################
@@ -132,8 +156,8 @@ for task_entry in "${TASKS[@]}"; do
                     --task_name '${TASK_NAME_LOOP}' \
                     --max-episode-steps ${MAX_EPISODE_STEPS} \
                     --image_crop_ratio 1.0 \
-                    --image_resize_height 480 \
-                    --image_resize_width 640 \
+                    --image_resize_height $EVAL_IMG_H \
+                    --image_resize_width $EVAL_IMG_W \
                     --port $PORT \
                     --device cpu \
                     --eval_set $EVAL_SET \
