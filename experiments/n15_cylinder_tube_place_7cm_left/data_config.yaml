@@ -1,0 +1,6 @@
+train:
+  datasets:
+    - path: /rlwrld2/home/youngwoong_cho/datasets/v4_cylinder_tube_place_7cm_left_224
+      embodiment_tag: new_embodiment
+      data_config: allex_thetwo_ck40_egostereo
+      weight: 1.0

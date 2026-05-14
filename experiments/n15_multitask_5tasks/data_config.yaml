@@ -1,0 +1,22 @@
+train:
+  datasets:
+    - path: /rlwrld2/home/youngwoong_cho/datasets/v4_cube_stack_3cm_right_224
+      embodiment_tag: new_embodiment
+      data_config: allex_thetwo_ck40_egostereo
+      weight: 1.0
+    - path: /rlwrld2/home/youngwoong_cho/datasets/v4_cylinder_tube_pick_5cm_right_224
+      embodiment_tag: new_embodiment
+      data_config: allex_thetwo_ck40_egostereo
+      weight: 1.0
+    - path: /rlwrld2/home/youngwoong_cho/datasets/v4_cylinder_tube_pick_7cm_left_224
+      embodiment_tag: new_embodiment
+      data_config: allex_thetwo_ck40_egostereo
+      weight: 1.0
+    - path: /rlwrld2/home/youngwoong_cho/datasets/v4_cylinder_tube_place_5cm_right_224
+      embodiment_tag: new_embodiment
+      data_config: allex_thetwo_ck40_egostereo
+      weight: 1.0
+    - path: /rlwrld2/home/youngwoong_cho/datasets/v4_cylinder_tube_place_7cm_left_224
+      embodiment_tag: new_embodiment
+      data_config: allex_thetwo_ck40_egostereo
+      weight: 1.0
